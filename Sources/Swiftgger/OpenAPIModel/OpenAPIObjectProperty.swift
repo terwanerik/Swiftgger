@@ -11,9 +11,9 @@ import Foundation
 public class OpenAPIObjectProperty: Encodable {
 
     public private(set) var type: String
-    public private(set) var example: String?
+    public private(set) var example: AnyCodable?
 
-    init(type: String, example: String?) {
+    init(type: String, example: AnyCodable?) {
         self.type = type
         self.example = example
     }

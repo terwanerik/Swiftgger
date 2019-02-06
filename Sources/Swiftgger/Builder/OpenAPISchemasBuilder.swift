@@ -11,6 +11,7 @@ import Foundation
 class OpenAPISchemasBuilder {
 
     let objects: [APIObject]
+    let jsonEncoder = JSONEncoder()
 
     init(objects: [APIObject]) {
         self.objects = objects
@@ -42,13 +43,46 @@ class OpenAPISchemasBuilder {
 
         var array:  [(name: String, type: OpenAPIObjectProperty)] = []
         for property in properties {
-            let someType = type(of: unwrap(property.value))
+            let value = unwrap(property.value)
+            let someType = type(of: value)
             let typeName = String(describing: someType)
-            let example = String(describing: unwrap(property.value))
-            array.append((name: property.label!, type: OpenAPIObjectProperty(type: typeName.lowercased(), example: example)))
+            var example = AnyCodable(value: value)
+            
+            let childMirror = Mirror(reflecting: value)
+
+            if childMirror.displayStyle != nil {
+                var jsonable: Any = toDict(obj: value)
+
+                if value is [Any] {
+                    jsonable = toArray(arr: value as! [Any])
+                }
+
+                example = AnyCodable(value: jsonable)
+            }
+            
+            let objectType = OpenAPIObjectProperty(type: typeName.lowercased(), example: example)
+            
+            if let label = property.label {
+                array.append((name: label, type: objectType))
+            }
         }
 
         return array
+    }
+    
+    private func toArray(arr: [Any]) -> [Any] {
+       return arr.map { toDict(obj: $0) }
+    }
+    
+    private func toDict(obj: Any) -> [String:Any] {
+        var dict = [String:Any]()
+        let otherSelf = Mirror(reflecting: obj)
+        for child in otherSelf.children {
+            if let key = child.label {
+                dict[key] = String(describing: child.value)
+            }
+        }
+        return dict
     }
 
     private func getRequiredProperties(properties: Mirror.Children) -> [String] {
@@ -64,7 +98,6 @@ class OpenAPISchemasBuilder {
     }
 
     private func unwrap<T>(_ any: T) -> Any {
-
         let mirror = Mirror(reflecting: any)
         guard mirror.displayStyle == .optional, let first = mirror.children.first else {
             return any
